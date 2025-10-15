@@ -44,41 +44,32 @@
     .opt.wrong{border-color:#f3c4c3;background:#fff6f6;box-shadow:0 0 0 2px rgba(174,34,32,.10) inset}
     .explain{margin:.55rem 0 0;color:var(--muted);display:none}
     .explain.show{display:block}
-    .controls{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
+    .controls{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;justify-content:center;}
     button{appearance:none;border:0;border-radius:12px;padding:.85rem 1.05rem;font-weight:700;cursor:pointer}
     .btn-primary{background:var(--green);color:#fff}
-    .btn-ghost{background:#fff;border:2px solid var(--green);color:var(--green)}
-    .btn-link{background:transparent;color:var(--green);text-decoration:underline;padding:.4rem .2rem}
-    .btn-warn{background:var(--red);color:#fff}
     .result{font-weight:900}
-    .toast{margin:0;color:var(--red);font-weight:700}
     a:focus,button:focus,input:focus{outline:2px solid var(--focus);outline-offset:2px;border-radius:8px}
     footer{padding:2rem 1rem;text-align:center;color:var(--muted)}
-    .hint{font-size:.95rem;color:var(--muted)}
-    .tag{display:inline-block;padding:.15rem .5rem;border-radius:999px;background:#fff7b3;color:#111;border:1px solid #f3e87a;font-weight:700;font-size:.8rem}
+    .hide{display:none}
   </style>
 </head>
 <body>
   <header>
     <h1>Вікторина: Розпізнай фейковий сайт <span class="badge">SmartWeek</span></h1>
-    <p>Обери відповіді. Після перевірки отримаєш бал і пояснення. <span class="tag">#009846 · #FFED00 · #AE2220 · #152731</span></p>
+    <p>Обери відповідь, щоб отримати пояснення та перейти до наступного питання.</p>
   </header>
 
   <main>
     <div class="panel card">
-      <form id="quiz" aria-label="Вікторина про ознаки фейкових сайтів"></form>
-      <div class="controls" style="margin-top:.6rem">
-        <button type="button" id="check" class="btn-primary">Перевірити</button>
-        <button type="button" id="reset" class="btn-ghost">Скинути</button>
-        <button type="button" id="reshuffle" class="btn-link" title="Перемішати порядок запитань і варіантів">Перемішати</button>
-        <span id="msg" class="result" aria-live="polite"></span>
+      <div id="question-container">
+        <!-- Питання будуть вставлятися сюди -->
       </div>
-      <div class="controls" style="margin-top:.4rem">
-        <button type="button" id="copy" class="btn-ghost" title="Скопіювати підсумок у буфер">Скопіювати результат</button>
-        <button type="button" id="csv" class="btn-primary" style="background:var(--yellow);color:#111;border:2px solid rgba(0,0,0,.08)" title="Завантажити .csv із відповідями">Завантажити CSV</button>
+      <div id="result-container" class="hide">
+        <!-- Результат буде тут -->
       </div>
-      <p id="toast" class="toast" aria-live="assertive"></p>
-      <p class="hint">Порада: звіряй домен, сертифікат HTTPS (замок), «Про нас» і реквізити, стиль заголовків, джерела та способи оплати.</p>
+      <div class="controls" style="margin-top:1rem">
+        <button type="button" id="next-btn" class="btn-primary hide">Наступне питання</button>
+      </div>
     </div>
 
     <div class="card">
@@ -100,279 +91,233 @@
   </footer>
 
   <script>
-    // Банк запитань
-    const BANK = [
+    const quizData = [
       {
-        q: "У заголовку: «РЕВОЛЮЦІЯ! ДОБРИВО ДАЄ +300% ВРОЖАЙ ЗА ТИЖДЕНЬ!» Що насторожує найбільше?",
+        q: "Сайт добрив обіцяє «+300% врожаю за тиждень!» під заголовком, написаним великими літерами. Що є ключовою ознакою маніпуляції?",
         options: [
-          "Скромний дизайн сторінки.",
-          "Сенсаційний заголовок з нереалістичними цифрами та обіцянками.",
-          "Наявність сторінки «Контакти»."
+          "Використання великих літер для привернення уваги.",
+          "Нереалістична обіцянка, що грає на емоціях та бажанні швидкого результату.",
+          "Відсутність наукових доказів на головній сторінці."
         ],
         a: 1,
-        why: "Капслок, обіцянки й «магічні» цифри — класичний прийом маніпуляції."
+        why: "Нереалістичні обіцянки, сенсаційність та гра на емоціях — класичні прийоми маніпуляції, покликані відключити критичне мислення."
       },
       {
-        q: "Домен схожий на офіційний: agro-institut.com замість agroinstitute.gov.ua. Твої дії?",
+        q: "Ви перейшли на сайт `agro-institut.com`, хоча очікували побачити офіційний ресурс `agroinstitute.gov.ua`. Що варто врахувати?",
         options: [
-          "Не звертати уваги: логотип же гарний.",
-          "Це те саме — різниця неважлива.",
-          "Підозра на підміну: домен-двійник з іншим суфіксом."
-        ],
-        a: 2,
-        why: "Домен-двійник — типова техніка фішингу/маскування."
-      },
-      {
-        q: "Немає HTTPS (без «замка»), але просять ввести дані картки.",
-        options: [
-          "Не вводити, закрити сторінку і перевірити офіційні джерела.",
-          "Ввести, мені ж треба швидко.",
-          "Надіслати дані у приватний чат."
-        ],
-        a: 0,
-        why: "Без шифрування ризикуєш віддати дані зловмисникам."
-      },
-      {
-        q: "«Про нас» — без юрособи/ЄДРПОУ, контакти — лише анонімний месенджер.",
-        options: [
-          "Нормально для сучасних сайтів.",
-          "Це «таємний стартап».",
-          "Підозріло: немає прозорих реквізитів і перевірних контактів."
-        ],
-        a: 2,
-        why: "Чесні організації зазвичай публікують реквізити та контакти."
-      },
-      {
-        q: "Відгуки — суцільні 5★, однакові аватарки, тексти без деталей.",
-        options: [
-          "Супер, купую негайно!",
-          "Можуть бути фейковими.",
-          "Просто всім зайшло."
+          "Сайти в зоні `.com` часто є міжнародними версіями держустанов.",
+          "Невелика зміна в назві та інша доменна зона (.com замість .gov.ua) є типовою ознакою фішингового сайту-двійника.",
+          "Головне — наявність значка HTTPS, а не точність домену."
         ],
         a: 1,
-        why: "Нереалістично ідеальні відгуки без конкретики — тривожний знак."
+        why: "Домен-двійник — типова техніка фішингу. Шахраї імітують офіційні сайти, змінюючи одну-дві літери або доменну зону (.com, .net, .org замість .gov.ua)."
       },
       {
-        q: "«Акція до кінця дня!» з таймером, просять оплатити на картку фізособи.",
+        q: "На сторінці оплати товару ви помітили, що в адресному рядку браузера немає значка замка (HTTPS). Який висновок є правильним?",
         options: [
-          "Зупинитися та перевірити реквізити й джерела.",
-          "Платити швидко, поки таймер «тикає».",
-          "Кинути гроші в анонімний чат."
+          "Мої платіжні дані будуть передані у незашифрованому вигляді, що є вкрай небезпечним.",
+          "Замок потрібен лише для входу в особистий кабінет, а не для оплати.",
+          "Сучасні браузери захищають дані автоматично, навіть без HTTPS."
         ],
         a: 0,
-        why: "Штучна терміновість + картка фізособи = високий ризик шахрайства."
+        why: "Відсутність HTTPS означає, що з'єднання не зашифроване. Будь-які дані (паролі, номери карток) можуть бути перехоплені зловмисниками."
       },
       {
-        q: "На «держсайті» купа мовних помилок і «кирилатиниці» у назвах.",
+        q: "На сторінці «Контакти» інтернет-магазину вказано лише email та Telegram-бот. Юридична інформація відсутня. Як це оцінити?",
         options: [
-          "Нічого страшного.",
-          "Це такий стиль.",
-          "Ймовірна підробка: офіційні ресурси проходять вичитку."
+          "Це поширена практика для малого бізнесу, щоб зменшити кількість спаму.",
+          "Відсутність юридичних реквізитів та офіційних контактів значно підвищує ризик шахрайства.",
+          "Головне, щоб відповідали в месенджері, а реквізити — формальність."
         ],
-        a: 2,
-        why: "Помилки часто видають поспіх і неофіційність."
+        a: 1,
+        why: "Легітимні компанії завжди надають юридичну інформацію (назву, ЄДРПОУ, адресу). Її відсутність — червоний прапорець, що вказує на можливу анонімність шахраїв."
       },
       {
-        q: "Фото «команди» — зі стоку, подекуди видні водяні знаки.",
+        q: "Секція відгуків на сайті заповнена виключно позитивними коментарями з короткими текстами на кшталт «Все супер!». Про що це свідчить?",
         options: [
-          "Перевірити реверс-пошуком (Google Images), пошукати згадки про людей.",
-          "Ігнорувати, дрібниці.",
-          "Повірити відповіді бота в чаті."
+          "Компанія має бездоганну репутацію та дуже задоволених клієнтів.",
+          "Однотипні, надто позитивні відгуки без конкретики є ознакою того, що вони можуть бути несправжніми.",
+          "Негативні відгуки просто ще не встигли написати, бо сайт новий."
+        ],
+        a: 1,
+        why: "Реальні відгуки зазвичай різноманітні, містять деталі та не завжди є ідеально позитивними. Суцільні «п'ятірки» без конкретики — тривожний знак."
+      },
+      {
+        q: "Сайт пропонує величезну знижку, яка діє «лише 15 хвилин», а для оплати пропонується переказ на картку фізособи. Який ризик тут головний?",
+        options: [
+          "Таймер створює штучний тиск, а оплата на приватну картку не дає жодних гарантій.",
+          "Можна не встигнути здійснити платіж, поки таймер не закінчився.",
+          "Переказ на картку — це найшвидший спосіб оплати для акції."
         ],
         a: 0,
-        why: "Стоки замість реальних фото — частий маркер фейку."
+        why: "Це комбінація двох маніпулятивних технік: штучна терміновість (змушує діяти необдумано) та оплата на картку фізособи (неможливо оскаржити чи повернути кошти)."
+      },
+      {
+        q: "На сайті, що виглядає як офіційний портал, ви помічаєте численні граматичні помилки. Яке припущення є найбільш імовірним?",
+        options: [
+          "Інформацію додавали поспіхом, тому не встигли вичитати.",
+          "Це може бути фейковий сайт, оскільки офіційні ресурси зазвичай мають високі стандарти якості контенту.",
+          "Сайт перекладали з іншої мови за допомогою автоматичного перекладача."
+        ],
+        a: 1,
+        why: "Офіційні сайти, особливо державні, проходять ретельну перевірку та вичитку. Велика кількість помилок часто видає шахрайський ресурс, створений поспіхом."
+      },
+      {
+        q: "У розділі «Наша команда» ви бачите фотографії співробітників, які виглядають як моделі. Що це може означати?",
+        options: [
+          "Компанія найняла на роботу дуже фотогенічних спеціалістів.",
+          "Сайт використовує стокові фото, що ставить під сумнів реальність існування «команди».",
+          "Це стандартний підхід для збереження конфіденційності справжніх співробітників."
+        ],
+        a: 1,
+        why: "Шахраї часто використовують фото з фотостоків, щоб створити ілюзію великої професійної команди. Перевірити це можна за допомогою пошуку зображень Google."
       }
     ];
 
-    const $quiz = document.getElementById('quiz');
-    const $check = document.getElementById('check');
-    const $reset = document.getElementById('reset');
-    const $reshuffle = document.getElementById('reshuffle');
-    const $msg = document.getElementById('msg');
-    const $toast = document.getElementById('toast');
-    const $y = document.getElementById('y');
-    const $copy = document.getElementById('copy');
-    const $csv = document.getElementById('csv');
+    const questionContainer = document.getElementById('question-container');
+    const resultContainer = document.getElementById('result-container');
+    const nextButton = document.getElementById('next-btn');
 
-    const state = { order: [], answers: [], mixes: [] };
+    let shuffledQuestions = [];
+    let currentQuestionIndex = 0;
+    let score = 0;
 
-    const shuffle = arr => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
-
-    function render() {
-      $quiz.innerHTML = "";
-      $msg.textContent = "";
-      $toast.textContent = "";
-      state.order = shuffle([...Array(BANK.length).keys()]);
-      state.answers = new Array(BANK.length).fill(null);
-      state.mixes = [];
-
-      state.order.forEach((idx, qi) => {
-        const item = BANK[idx];
-        const opts = item.options.map((t,i)=>({t,i}));
-        const mixed = shuffle(opts);
-        const correctNewIndex = mixed.findIndex(o => o.i === item.a);
-        state.mixes[qi] = { map: mixed, correct: correctNewIndex, bankIndex: idx };
-
-        const fs = document.createElement('fieldset');
-        fs.className = "card grid";
-        fs.setAttribute('aria-labelledby', `q${qi}-title`);
-        fs.dataset.qi = qi;
-        fs.dataset.correct = correctNewIndex;
-
-        const h = document.createElement('h3');
-        h.className = "q-title";
-        h.id = `q${qi}-title`;
-        h.textContent = `${qi+1}) ${item.q}`;
-        fs.appendChild(h);
-
-        const list = document.createElement('div');
-        list.className = "options";
-
-        mixed.forEach((opt, oi) => {
-          const id = `q${qi}-o${oi}`;
-          const label = document.createElement('label');
-          label.className = "opt";
-          label.htmlFor = id;
-
-          const input = document.createElement('input');
-          input.type = "radio";
-          input.name = `q${qi}`;
-          input.id = id;
-          input.value = oi;
-          input.addEventListener('change', () => state.answers[qi] = { chosen: oi });
-
-          const span = document.createElement('span');
-          span.textContent = opt.t;
-
-          label.appendChild(input);
-          label.appendChild(span);
-          list.appendChild(label);
-        });
-
-        const ex = document.createElement('p');
-        ex.className = "explain";
-        ex.textContent = "Пояснення: " + item.why;
-
-        fs.appendChild(list);
-        fs.appendChild(ex);
-        $quiz.appendChild(fs);
-      });
+    function shuffle(array) {
+      let currentIndex = array.length, randomIndex;
+      while (currentIndex > 0) {
+        randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex--;
+        [array[currentIndex], array[randomIndex]] = [
+          array[randomIndex], array[currentIndex]];
+      }
+      return array;
     }
 
-    function checkAll() {
-      $toast.textContent = "";
-      const miss = state.answers.findIndex(v => v === null);
-      if (miss !== -1) {
-        $toast.textContent = `Заповни всі відповіді (пропущено питання №${miss+1}).`;
-        return;
-      }
+    function startQuiz() {
+      shuffledQuestions = shuffle([...quizData]);
+      currentQuestionIndex = 0;
+      score = 0;
+      resultContainer.classList.add('hide');
+      questionContainer.classList.remove('hide');
+      nextButton.innerHTML = "Наступне питання";
+      nextButton.classList.add('hide');
+      showQuestion();
+    }
 
-      let correct = 0;
-      [...$quiz.querySelectorAll('fieldset')].forEach(fs => {
-        const qi = Number(fs.dataset.qi);
-        const right = Number(fs.dataset.correct);
-        const chosen = state.answers[qi].chosen;
-        const labels = [...fs.querySelectorAll('.opt')];
-        labels.forEach((lbl, i) => {
-          lbl.classList.remove('correct','wrong');
-          if (i === right) lbl.classList.add('correct');
-          if (i === chosen && chosen !== right) lbl.classList.add('wrong');
-          lbl.querySelector('input').disabled = true;
+    function showQuestion() {
+      questionContainer.innerHTML = '';
+      const currentQuestion = shuffledQuestions[currentQuestionIndex];
+      
+      const questionTitle = document.createElement('h3');
+      questionTitle.className = 'q-title';
+      questionTitle.textContent = `${currentQuestionIndex + 1}) ${currentQuestion.q}`;
+      questionContainer.appendChild(questionTitle);
+      
+      const optionsContainer = document.createElement('div');
+      optionsContainer.className = 'options';
+      
+      const optionsToShuffle = currentQuestion.options.map((optionText, index) => ({
+        text: optionText,
+        isCorrect: index === currentQuestion.a
+      }));
+      
+      const shuffledOptions = shuffle(optionsToShuffle);
+      const correctIndexInShuffled = shuffledOptions.findIndex(opt => opt.isCorrect);
+
+      shuffledOptions.forEach((option, index) => {
+        const label = document.createElement('label');
+        label.className = 'opt';
+        
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = `q${currentQuestionIndex}`;
+        input.value = index;
+        
+        const span = document.createElement('span');
+        span.textContent = option.text;
+        
+        label.appendChild(input);
+        label.appendChild(span);
+        
+        label.addEventListener('click', () => {
+          if (optionsContainer.querySelector('input:disabled')) return;
+          selectAnswer(index, correctIndexInShuffled, optionsContainer);
         });
-        fs.querySelector('.explain').classList.add('show');
-        if (chosen === right) correct++;
+        optionsContainer.appendChild(label);
       });
+      
+      questionContainer.appendChild(optionsContainer);
+      
+      const explanation = document.createElement('p');
+      explanation.className = 'explain';
+      explanation.textContent = "Пояснення: " + currentQuestion.why;
+      questionContainer.appendChild(explanation);
+    }
+    
+    function selectAnswer(selectedIndex, correctIndex, optionsContainer) {
+      const allLabels = optionsContainer.querySelectorAll('.opt');
+      
+      allLabels.forEach(label => {
+        label.querySelector('input').disabled = true;
+        label.style.cursor = 'default';
+      });
+      
+      const selectedLabel = allLabels[selectedIndex];
+      const correctLabel = allLabels[correctIndex];
 
-      const total = state.answers.length;
+      if (selectedIndex === correctIndex) {
+        score++;
+        selectedLabel.classList.add('correct');
+      } else {
+        selectedLabel.classList.add('wrong');
+        correctLabel.classList.add('correct');
+      }
+      
+      questionContainer.querySelector('.explain').classList.add('show');
+      
+      if (currentQuestionIndex < shuffledQuestions.length - 1) {
+        nextButton.classList.remove('hide');
+      } else {
+        nextButton.innerHTML = "Показати результат";
+        nextButton.classList.remove('hide');
+      }
+    }
+
+    function showResults() {
+      questionContainer.classList.add('hide');
+      resultContainer.classList.remove('hide');
+      
+      const total = shuffledQuestions.length;
       const verdict =
-        correct === total ? "Бездоганно! Ти чітко бачиш червоні прапорці." :
-        correct >= total - 1 ? "Майже ідеально! Ще трохи — і 100%." :
+        score === total ? "Бездоганно! Ти чітко бачиш червоні прапорці." :
+        score >= total - 1 ? "Майже ідеально! Ще трохи — і 100%." :
         "Є над чим попрацювати. Повторюй ознаки фейків — стане легше.";
-      $msg.textContent = `Результат: ${correct}/${total}. ${verdict}`;
+          
+      resultContainer.innerHTML = `
+        <h3 class="q-title">Тест завершено!</h3>
+        <p class="result" style="margin-bottom: 1rem;">Ваш результат: ${score} з ${total}</p>
+        <p>${verdict}</p>
+      `;
 
-      // збережемо підсумок у state для експорту
-      state.summary = buildSummary(correct, total);
-      state.csv = buildCSV(correct, total);
+      nextButton.innerHTML = "Спробувати ще раз";
     }
 
-    function resetAll() {
-      render();
-    }
-
-    function buildSummary(correct, total) {
-      const pct = Math.round((correct/total)*100);
-      return [
-        `Вікторина: Розпізнай фейковий сайт`,
-        `Результат: ${correct}/${total} (${pct}%)`,
-        `Дата/час: ${new Date().toLocaleString()}`,
-        `Джерело: ${location.href}`
-      ].join('\n');
-    }
-
-    function buildCSV(correct, total) {
-      const rows = [];
-      const header = [
-        "timestamp","score","total","percent","q_index","q_text","chosen_text","correct_text","is_correct"
-      ];
-      rows.push(header);
-
-      const ts = new Date().toISOString();
-      state.mixes.forEach((mix, qi) => {
-        const bankIdx = mix.bankIndex;
-        const qText = BANK[bankIdx].q.replace(/\s+/g,' ').trim();
-        const chosenIdx = state.answers[qi].chosen;
-        const chosenText = mix.map[chosenIdx]?.t ?? "";
-        const correctText = mix.map[mix.correct]?.t ?? "";
-        const isCorrect = chosenIdx === mix.correct ? "TRUE" : "FALSE";
-        const percent = Math.round((correct/total)*100);
-        rows.push([
-          ts, `${correct}`, `${total}`, `${percent}`,
-          `${qi+1}`, `"${qText.replace(/"/g,'""')}"`,
-          `"${(chosenText||"").replace(/"/g,'""')}"`,
-          `"${(correctText||"").replace(/"/g,'""')}"`,
-          isCorrect
-        ]);
-      });
-
-      return rows.map(r => r.join(',')).join('\n');
-    }
-
-    function downloadCSV() {
-      if (!state.csv) { $toast.textContent = "Спочатку натисни «Перевірити», щоб сформувати результат."; return; }
-      const blob = new Blob([state.csv], {type:'text/csv;charset=utf-8;'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const stamp = new Date().toISOString().replace(/[:.]/g,'-');
-      a.href = url;
-      a.download = `fake-site-quiz_${stamp}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    async function copySummary() {
-      if (!state.summary) { $toast.textContent = "Спочатку «Перевірити», тоді можна копіювати."; return; }
-      try {
-        await navigator.clipboard.writeText(state.summary);
-        $toast.style.color = 'var(--green)';
-        $toast.textContent = "Підсумок скопійовано у буфер обміну.";
-        setTimeout(()=>{ $toast.textContent=""; $toast.style.color='var(--red)'; }, 1800);
-      } catch {
-        $toast.textContent = "Не вдалося скопіювати. Дозволь доступ до буфера або збережи CSV.";
+    nextButton.addEventListener('click', () => {
+      if (nextButton.innerHTML === "Спробувати ще раз") {
+        startQuiz();
+      } else if (nextButton.innerHTML === "Показати результат") {
+        showResults();
+      } else {
+        currentQuestionIndex++;
+        showQuestion();
+        nextButton.classList.add('hide');
       }
-    }
+    });
 
-    // Події
     document.getElementById('y').textContent = new Date().getFullYear();
-    $check.addEventListener('click', checkAll);
-    $reset.addEventListener('click', resetAll);
-    $reshuffle.addEventListener('click', resetAll);
-    $copy.addEventListener('click', copySummary);
-    $csv.addEventListener('click', downloadCSV);
-
-    // Перший рендер
-    render();
+    
+    startQuiz();
   </script>
 </body>
 </html>
+
