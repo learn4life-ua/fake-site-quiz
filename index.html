@@ -4,23 +4,297 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Вікторина: Розпізнай фейковий сайт</title>
+  <meta name="description" content="Коротка вікторина, що вчить розпізнавати фейкові сайти: домени-двійники, сенсаційні заголовки, HTTPS, контакти, термінові «акції» тощо.">
   <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #f5f5f5;
-      color: #222;
-      text-align: center;
-      margin: 0;
-      padding: 2rem;
+    :root{
+      --bg:#f6f7f8; --card:#fff; --text:#1e293b; --muted:#64748b;
+      --primary:#2c5530; --primary-weak:#e6efe7;
+      --ok:#15803d; --bad:#b91c1c; --border:#e5e7eb; --focus:#0ea5e9;
     }
-    h1 {
-      color: #2c5530;
-    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    header{padding:1.25rem;text-align:center;background:#eef3ef;border-bottom:1px solid var(--border)}
+    header h1{margin:.2rem 0;color:var(--primary);font-size:clamp(1.2rem,3.5vw,1.8rem)}
+    header p{margin:.2rem 0;color:var(--muted)}
+    main{max-width:920px;margin:1.2rem auto;padding:0 1rem}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1rem;margin:.9rem 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .q-title{margin:0 0 .6rem;font-weight:700}
+    .options{display:grid;gap:.5rem}
+    .opt{display:flex;gap:.6rem;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:.6rem .7rem;cursor:pointer;background:#fff}
+    .opt input{accent-color:var(--primary);margin-top:.2rem}
+    .opt.correct{border-color:#86efac;background:#f0fdf4}
+    .opt.wrong{border-color:#fecaca;background:#fff1f2}
+    .explain{margin:.5rem 0 0;color:var(--muted);display:none}
+    .explain.show{display:block}
+    .controls{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
+    button{appearance:none;border:0;border-radius:12px;padding:.85rem 1.05rem;font-weight:600;cursor:pointer}
+    .btn-primary{background:var(--primary);color:#fff}
+    .btn-ghost{background:#fff;border:2px solid var(--primary);color:var(--primary)}
+    .btn-link{background:transparent;color:var(--primary);text-decoration:underline;padding:.4rem .2rem}
+    .result{font-weight:800}
+    .badge{display:inline-block;font-size:.85rem;padding:.2rem .55rem;border-radius:999px;background:var(--primary-weak);color:var(--primary);border:1px solid #d5e4d7;margin-left:.35rem}
+    .meta{font-size:.9rem;color:var(--muted)}
+    .toast{margin:0;color:var(--bad);font-weight:600}
+    .sr{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
+    a:focus,button:focus,input:focus{outline:2px solid var(--focus);outline-offset:2px;border-radius:8px}
+    footer{padding:2rem 1rem;text-align:center;color:var(--muted)}
   </style>
 </head>
 <body>
-  <h1>Вікторина: Розпізнай фейковий сайт 🕵️‍♀️</h1>
-  <p>Тут буде інтерактивна гра або тест для студентів.</p>
+  <header>
+    <h1>Вікторина: Розпізнай фейковий сайт <span class="badge">learn4life-ua</span></h1>
+    <p class="meta">Обери відповіді для кожного запитання. Після перевірки побачиш бал та пояснення.</p>
+  </header>
+
+  <main>
+    <div class="card">
+      <form id="quiz" aria-label="Вікторина про ознаки фейкових сайтів"></form>
+      <div class="controls" style="margin-top:.6rem">
+        <button type="button" id="check" class="btn-primary">Перевірити</button>
+        <button type="button" id="reset" class="btn-ghost">Скинути</button>
+        <button type="button" id="reshuffle" class="btn-link" title="Перемішати порядок запитань і варіантів">Перемішати</button>
+        <span id="msg" class="result" aria-live="polite"></span>
+      </div>
+      <p id="toast" class="toast" aria-live="assertive"></p>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary><strong>Підказка:</strong> що перевіряти на підозрілому сайті?</summary>
+        <ul>
+          <li>Домен і зону: <code>.gov.ua</code>/<code>.edu.ua</code> проти дивних аналогів; помилки в написанні.</li>
+          <li>HTTPS/сертифікат: замок у адресному рядку (але й HTTPS не гарантія чесності — це лише база).</li>
+          <li>Контакти, «Про нас», реквізити, EDRPOU/ЄДР, прозорі способи оплати.</li>
+          <li>Тон публікацій: сенсації, емоційний шантаж, «остання година знижки», обіцянки 300%.</li>
+          <li>Джерела: чи є посилання на офіційні публікації, наукові дослідження, реальні новини.</li>
+        </ul>
+      </details>
+    </div>
+  </main>
+
+  <footer>
+    © <span id="y"></span> learn4life-ua · Освітній проєкт «Розпізнай фейковий сайт»
+  </footer>
+
+  <script>
+    // Дані запитань: текст, варіанти, правильний індекс, пояснення
+    const BANK = [
+      {
+        q: "У заголовку сайту: «РЕВОЛЮЦІЯ! ДОБРИВО ДАЄ +300% ВРОЖАЙ ЗА ТИЖДЕНЬ!» Що насторожує найбільше?",
+        options: [
+          "Скромний дизайн сторінки.",
+          "Сенсаційний заголовок з нереалістичними цифрами та обіцянками.",
+          "Наявність сторінки «Контакти»."
+        ],
+        a: 1,
+        why: "Сенсаційність, капслок і магічні цифри — класичний гачок шахраїв."
+      },
+      {
+        q: "Домен виглядає схожим: agro-institut.com замість офіційного agroinstitute.gov.ua. Твої дії?",
+        options: [
+          "Не звертати уваги: логотип гарний.",
+          "Це точно те саме — різниця неважлива.",
+          "Підозра на підміну: домен-двійник з іншим суфіксом."
+        ],
+        a: 2,
+        why: "Домен-двійник — типова техніка фішингу/маскування під офіційні ресурси."
+      },
+      {
+        q: "На сайті немає HTTPS (немає «замка»), і просить ввести дані картки. Як правильно?",
+        options: [
+          "Не вводити дані, закрити сторінку, перевірити офіційний сайт.",
+          "Ввести — мені ж треба швидко.",
+          "Попросити в чаті надіслати дані картки напряму."
+        ],
+        a: 0,
+        why: "Без HTTPS дані можуть перехопити. Не вводь конфіденційне взагалі."
+      },
+      {
+        q: "Розділ «Про нас» — розмитий, без назв юрособи, немає EDRPOU/ЄДР, контакт — тільки анонімний телеграм. Це…",
+        options: [
+          "Стандарт для сучасних сайтів.",
+          "Нормально: «таємний стартап».",
+          "Підозріло: відсутність прозорих реквізитів і перевірних контактів."
+        ],
+        a: 2,
+        why: "Чесні організації зазвичай відкривають назву, адресу, реквізити, способи зв’язку."
+      },
+      {
+        q: "На сторінці «відгуки» — лише 5-зіркові, однакові аватарки, тексти без конкретики. Висновок?",
+        options: [
+          "Все чудово — купую негайно!",
+          "Шаблонні «відгуки» можуть бути фейковими.",
+          "Просто всі задоволені."
+        ],
+        a: 1,
+        why: "Надто ідеальні відгуки без деталей — тривожний дзвіночок."
+      },
+      {
+        q: "Бачиш «акцію» з таймером: «Лише сьогодні! Залишилось 07:59». Просять оплату на картку-фізособу.",
+        options: [
+          "Зупинитися й перевірити офіційні джерела/реквізити.",
+          "Платити швидко, поки таймер не закінчився.",
+          "Попросити оплатити в анонімному чаті."
+        ],
+        a: 0,
+        why: "Штучна терміновість + оплата на особисту картку = червоні прапорці."
+      },
+      {
+        q: "На «офіційному» сайті державної установи багато мовних помилок і змішаних латинських/кириличних літер у назвах.",
+        options: [
+          "Нічого страшного.",
+          "Це стиль дизайну.",
+          "Ймовірна підробка/копія: держресурси зазвичай проходять редактуру."
+        ],
+        a: 2,
+        why: "Помилки та «кирилатиниця» часто видають поспіх і неофіційність."
+      },
+      {
+        q: "Фото «команди» — явно зі стоку, місцями навіть водяні знаки. Твої дії?",
+        options: [
+          "Спокійно перевірити в Google Images і шукати реальні згадки про людей.",
+          "Ігнорувати, це дрібниці.",
+          "Написати в чат-бот «чи ви справжні?» і повірити першій відповіді."
+        ],
+        a: 0,
+        why: "Стокові фото замість реальних — ще одна типова ознака фейку."
+      }
+    ];
+
+    const state = { order: [], answers: [] };
+    const $quiz = document.getElementById('quiz');
+    const $check = document.getElementById('check');
+    const $reset = document.getElementById('reset');
+    const $reshuffle = document.getElementById('reshuffle');
+    const $msg = document.getElementById('msg');
+    const $toast = document.getElementById('toast');
+
+    const shuffle = arr => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+
+    function render() {
+      $quiz.innerHTML = "";
+      $msg.textContent = "";
+      $toast.textContent = "";
+
+      // сформувати порядок питань
+      state.order = shuffle([...Array(BANK.length).keys()]);
+      state.answers = new Array(BANK.length).fill(null);
+
+      state.order.forEach((idx, qi) => {
+        const item = BANK[idx];
+        // перемішати варіанти і запам’ятати новий індекс правильної
+        const opts = item.options.map((t,i)=>({t, i}));
+        const mixed = shuffle(opts);
+        const correctNewIndex = mixed.findIndex(o => o.i === item.a);
+
+        const field = document.createElement('fieldset');
+        field.className = "card";
+        field.setAttribute('aria-labelledby', `q${qi}-title`);
+
+        const h = document.createElement('h3');
+        h.className = "q-title";
+        h.id = `q${qi}-title`;
+        h.textContent = `${qi+1}) ${item.q}`;
+        field.appendChild(h);
+
+        const list = document.createElement('div');
+        list.className = "options";
+
+        mixed.forEach((opt, oi) => {
+          const id = `q${qi}-o${oi}`;
+          const label = document.createElement('label');
+          label.className = "opt";
+          label.htmlFor = id;
+
+          const input = document.createElement('input');
+          input.type = "radio";
+          input.name = `q${qi}`;
+          input.id = id;
+          input.value = oi;
+          input.addEventListener('change', () => {
+            state.answers[qi] = { chosen: oi, correct: correctNewIndex };
+          });
+
+          const span = document.createElement('span');
+          span.textContent = opt.t;
+
+          label.appendChild(input);
+          label.appendChild(span);
+          list.appendChild(label);
+        });
+
+        const ex = document.createElement('p');
+        ex.className = "explain";
+        ex.textContent = "Пояснення: " + item.why;
+
+        // збережемо службові дані
+        field.dataset.qi = qi;
+        field.dataset.correct = correctNewIndex;
+
+        field.appendChild(list);
+        field.appendChild(ex);
+        $quiz.appendChild(field);
+      });
+    }
+
+    function checkAll() {
+      $toast.textContent = "";
+      // валідація: всі відповіді обрані?
+      const missing = state.answers.findIndex(v => v === null);
+      if (missing !== -1) {
+        $toast.textContent = `Заповни всі відповіді (зараз пропущено питання №${missing+1}).`;
+        return;
+      }
+
+      let correct = 0;
+      // підсвітити варіанти
+      [...$quiz.querySelectorAll('fieldset')].forEach(fs => {
+        const qi = Number(fs.dataset.qi);
+        const right = Number(fs.dataset.correct);
+        const chosen = state.answers[qi].chosen;
+
+        const labels = [...fs.querySelectorAll('.opt')];
+        labels.forEach((lbl, i) => {
+          lbl.classList.remove('correct','wrong');
+          if (i === right) lbl.classList.add('correct');
+          if (i === chosen && chosen !== right) lbl.classList.add('wrong');
+          // заблокуємо інпути після перевірки
+          const inp = lbl.querySelector('input');
+          inp.disabled = true;
+        });
+
+        // показати пояснення
+        fs.querySelector('.explain').classList.add('show');
+
+        if (chosen === right) correct++;
+      });
+
+      const total = state.answers.length;
+      const verdict =
+        correct === total ? "Бездоганно! Ти чітко бачиш червоні прапорці." :
+        correct >= total - 1 ? "Майже ідеально! Ще трохи уважності — і 100%." :
+        "Є над чим попрацювати. Повторюй ознаки фейків — стане легше.";
+
+      $msg.textContent = `Результат: ${correct}/${total}. ${verdict}`;
+    }
+
+    function resetAll() {
+      render();
+      $msg.textContent = "";
+      $toast.textContent = "";
+    }
+
+    // Події
+    $check.addEventListener('click', checkAll);
+    $reset.addEventListener('click', resetAll);
+    $reshuffle.addEventListener('click', resetAll);
+
+    // Рік у футері
+    document.getElementById('y').textContent = new Date().getFullYear();
+
+    // Перший рендер
+    render();
+  </script>
 </body>
 </html>
-
